@@ -117,6 +117,7 @@ const a = createAssistant({
   recognizer: new BrowserSpeechRecognizer(),
   synthesizer: new BrowserSpeechSynthesizer({ lang: selectedLang.value }),
   lang: selectedLang.value,
+  getPathname: () => router.currentRoute.value.path,
 })
 
 function changeLang(val) {

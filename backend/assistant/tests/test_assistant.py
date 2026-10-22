@@ -145,6 +145,38 @@ class ToolTests(Fixture):
     def test_navigation_allowlist(self):
         self.assertEqual(self.call('navigate', page='purchase-orders'), {'navigated': True, 'page': 'purchase-orders', 'path': '/purchase-orders'})
 
+    def test_open_vendor_form_tool_registration_and_action(self):
+        self.assertIn('open_vendor_form', REG)
+        out, action = REG.run('open_vendor_form', {'name': 'Acme Corp', 'company': 'Acme Inc', 'email': 'acme@example.com'})
+        self.assertTrue(out['opened'])
+        self.assertEqual(out['page'], 'vendors')
+        self.assertEqual(out['path'], '/vendors')
+        self.assertEqual(out['fields'], {'name': 'Acme Corp', 'company': 'Acme Inc', 'email': 'acme@example.com'})
+        self.assertEqual(action, {'type': 'open_vendor_form', 'page': 'vendors', 'path': '/vendors',
+                                  'fields': {'name': 'Acme Corp', 'company': 'Acme Inc', 'email': 'acme@example.com'}})
+
+    def test_open_vendor_form_safe_defaults_and_empty_args(self):
+        out, action = REG.run('open_vendor_form', {})
+        self.assertTrue(out['opened'])
+        self.assertEqual(out['fields'], {})
+        self.assertEqual(action, {'type': 'open_vendor_form', 'page': 'vendors', 'path': '/vendors', 'fields': {}})
+
+    def test_open_vendor_form_rejects_disallowed_and_sensitive_fields(self):
+        disallowed = [
+            {'pan': 'ABCDE1234F'}, {'gst': '33AAAAA0000A1Z5'}, {'bankName': 'HDFC'},
+            {'accountNumber': '123456'}, {'ifsc': 'HDFC0001'}, {'rating': 5},
+            {'status': 'Active'}, {'unknown_field': 'x'}, {'raw_sql': 'DROP TABLE'}
+        ]
+        for bad_args in disallowed:
+            with self.assertRaises(ToolError, msg=str(bad_args)):
+                REG.run('open_vendor_form', bad_args)
+
+    def test_open_vendor_form_zero_database_mutations(self):
+        count_before = Vendor.objects.count()
+        REG.run('open_vendor_form', {'name': 'Ghost Vendor', 'company': 'Ghost Co', 'email': 'ghost@example.com'})
+        self.assertEqual(Vendor.objects.count(), count_before)
+        self.assertFalse(Vendor.objects.filter(email='ghost@example.com').exists())
+
 
 class Scripted:
     """Provider that replays scripted responses and records what it was shown."""
@@ -157,8 +189,8 @@ class Scripted:
         return r(turns) if callable(r) else r
 
 
-def call(name, **args):
-    return ToolCall(id=f'id-{name}', name=name, args=args)
+def call(_tool, **args):
+    return ToolCall(id=f'id-{_tool}', name=_tool, args=args)
 
 
 class EngineTests(Fixture):
@@ -196,6 +228,15 @@ class EngineTests(Fixture):
         p = Scripted(ModelResponse(tool_calls=[call('navigate', page='inventory')]), ModelResponse(text='Opening Inventory.'))
         res = run_turn(p, 'open inventory')
         self.assertEqual(res.actions, [{'type': 'navigate', 'page': 'inventory', 'path': '/inventory'}])
+
+    def test_open_vendor_form_engine_turn(self):
+        p = Scripted(ModelResponse(tool_calls=[call('open_vendor_form', name='Acme Ltd', email='contact@acme.com')]),
+                     ModelResponse(text="Opening the Add Vendor form for Acme Ltd."))
+        res = run_turn(p, 'Add vendor Acme Ltd with email contact@acme.com')
+        self.assertEqual(res.reply, 'Opening the Add Vendor form for Acme Ltd.')
+        self.assertEqual(res.tools_used, ['open_vendor_form'])
+        self.assertEqual(res.actions, [{'type': 'open_vendor_form', 'page': 'vendors', 'path': '/vendors',
+                                        'fields': {'name': 'Acme Ltd', 'email': 'contact@acme.com'}}])
 
     def test_no_navigation_without_valid_tool_call(self):
         p = Scripted(ModelResponse(tool_calls=[call('navigate', page='/evil')]), ModelResponse(text='Cannot.'))
@@ -264,6 +305,26 @@ class ViewTests(Fixture):
     def test_navigation_in_response(self):
         p = Scripted(ModelResponse(tool_calls=[call('navigate', page='vendors')]), ModelResponse(text='Opening.'))
         self.assertEqual(self.post({'message': 'open vendors'}, p).json()['data']['navigation']['path'], '/vendors')
+
+    def test_open_vendor_form_in_chat_response(self):
+        p = Scripted(ModelResponse(tool_calls=[call('open_vendor_form', name='Acme Supplies')]),
+                     ModelResponse(text='Opening form.'))
+        res = self.post({'message': 'add vendor Acme Supplies'}, p)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()['data']
+        self.assertEqual(data['navigation'], {'page': 'vendors', 'path': '/vendors'})
+        self.assertEqual(data['actions'], [{'type': 'open_vendor_form', 'page': 'vendors', 'path': '/vendors',
+                                            'fields': {'name': 'Acme Supplies'}}])
+        self.assertEqual(data['toolsUsed'], ['open_vendor_form'])
+
+    def test_ordinary_navigation_chat_response_compatibility(self):
+        p = Scripted(ModelResponse(tool_calls=[call('navigate', page='invoices')]),
+                     ModelResponse(text='Opening Invoices.'))
+        res = self.post({'message': 'go to invoices'}, p)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()['data']
+        self.assertEqual(data['navigation'], {'page': 'invoices', 'path': '/invoices'})
+        self.assertEqual(data['actions'], [{'type': 'navigate', 'page': 'invoices', 'path': '/invoices'}])
 
     def test_existing_api_still_works(self):
         r = self.c.get('/api/vendors')

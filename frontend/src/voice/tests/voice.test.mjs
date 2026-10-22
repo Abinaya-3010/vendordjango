@@ -261,7 +261,7 @@ test('BrowserSpeechRecognizer: result, error mapping, silence, abort detaches', 
   let got = [];
   rec.start({ lang: 'en-US', onResult: (t, c) => got.push(['r', t, c]), onError: (c) => got.push(['e', c]) });
   const i = instances[0];
-  assert.equal(i.lang, 'en-US'); assert.equal(i.continuous, false); assert.equal(i.interimResults, false);
+  assert.equal(i.lang, 'en-US'); assert.equal(i.continuous, false); assert.equal(i.interimResults, true);
   i.onresult(finalResult(' open vendors ')); i.onend && i.onend(); // end after result must not also report
   assert.deepEqual(got, [['r', 'open vendors', 0.8]]);
 
@@ -289,6 +289,98 @@ test('BrowserSpeechRecognizer: result, error mapping, silence, abort detaches', 
   // start() throwing
   R.throwStart = true; got = [];
   rec.start({ onResult() {}, onError: (c) => got.push(c) }); assert.deepEqual(got, ['RECOGNITION_FAILED']);
+});
+
+test('BrowserSpeechRecognizer: recovery of interim transcript on onend and lifecycle event hooks', () => {
+  const { R, instances } = fakeSpeechCtor();
+  const rec = new BrowserSpeechRecognizer({ SpeechRecognition: R });
+
+  // 1. Transcription without explicit isFinal, recovered on onend
+  let results = [];
+  rec.start({ lang: 'en-US', onResult: (t, c) => results.push([t, c]), onError: (e) => results.push(['err', e]) });
+  const inst = instances.at(-1);
+
+  // Exercise lifecycle callbacks
+  inst.onstart && inst.onstart();
+  inst.onaudiostart && inst.onaudiostart();
+  inst.onsoundstart && inst.onsoundstart();
+  inst.onspeechstart && inst.onspeechstart();
+  inst.onspeechend && inst.onspeechend();
+  inst.onaudioend && inst.onaudioend();
+
+  // Send result where isFinal is false
+  inst.onresult({
+    results: [
+      Object.assign([{ transcript: 'create a vendor', confidence: 0.95 }], { isFinal: false }),
+    ],
+  });
+  // onend fires without an explicit isFinal event
+  inst.onend();
+  assert.deepEqual(results, [['create a vendor', 0.95]]);
+
+  // 2. Error recovery if transcript already received
+  results = [];
+  rec.start({ lang: 'en-US', onResult: (t, c) => results.push([t, c]), onError: (e) => results.push(['err', e]) });
+  const inst2 = instances.at(-1);
+  inst2.onresult({
+    results: [
+      Object.assign([{ transcript: 'open inventory', confidence: 0.9 }], { isFinal: false }),
+    ],
+  });
+  inst2.onerror({ error: 'network' });
+  assert.deepEqual(results, [['open inventory', 0.9]]);
+
+  // 3. Multi-chunk result: chunk 0 is final but chunk 1 is interim -> does NOT stop prematurely
+  results = [];
+  rec.start({ lang: 'en-US', onResult: (t, c) => results.push([t, c]), onError: (e) => results.push(['err', e]) });
+  const instChunk = instances.at(-1);
+  instChunk.onresult({
+    results: [
+      Object.assign([{ transcript: 'add vendor', confidence: 0.9 }], { isFinal: true }),
+      Object.assign([{ transcript: 'Acme Supplies', confidence: 0.85 }], { isFinal: false }),
+    ],
+  });
+  // Must not have settled prematurely while chunk 1 is still interim
+  assert.equal(results.length, 0);
+  assert.equal(instChunk.stopped, false);
+  // When onend fires, delivers the combined accumulated transcript
+  instChunk.onend();
+  assert.deepEqual(results, [['add vendor Acme Supplies', 0.875]]);
+
+  // 4. recognizer.stop() gracefully triggers stop on instance and delivers on onend
+  results = [];
+  rec.start({ lang: 'en-US', onResult: (t, c) => results.push([t, c]), onError: (e) => results.push(['err', e]) });
+  const instStop = instances.at(-1);
+  instStop.onresult({
+    results: [
+      Object.assign([{ transcript: 'show all invoices', confidence: 0.92 }], { isFinal: false }),
+    ],
+  });
+  rec.stop();
+  assert.equal(instStop.stopped, true);
+  instStop.onend();
+  assert.deepEqual(results, [['show all invoices', 0.92]]);
+
+  // 5. No-speech timeout when no transcript received
+  results = [];
+  rec.start({ lang: 'en-US', onResult: (t) => results.push(t), onError: (e) => results.push(['err', e]) });
+  const inst3 = instances.at(-1);
+  inst3.onend();
+  assert.deepEqual(results, [['err', 'NO_SPEECH']]);
+
+  // 6. Permission denial
+  results = [];
+  rec.start({ lang: 'en-US', onResult: (t) => results.push(t), onError: (e) => results.push(['err', e]) });
+  const inst4 = instances.at(-1);
+  inst4.onerror({ error: 'not-allowed' });
+  assert.deepEqual(results, [['err', 'PERMISSION_DENIED']]);
+
+  // 7. Unsupported environment
+  const unsupp = new BrowserSpeechRecognizer({});
+  assert.equal(unsupp.isSupported(), false);
+  results = [];
+  unsupp.start({ onResult: () => {}, onError: (e) => results.push(e) });
+  assert.deepEqual(results, ['UNSUPPORTED']);
 });
 
 test('BrowserSpeechSynthesizer: speaks, resolves on end, cancel resolves pending, unsupported is a no-op', async () => {

@@ -25,15 +25,18 @@ watch(() => props.resource, (res) => {
         return {
           open: dialog.value,
           mode: editing.value ? 'edit' : (dialog.value ? 'add' : null),
-          blockedBy: null
+          blockedBy: detail.value ? 'detail-dialog' : null
         };
       },
       openAdd() {
+        if (detail.value) return { opened: false, reason: 'blocked', blockedBy: 'detail-dialog' };
         if (dialog.value) return { opened: false, reason: 'already-open' };
         openCreate();
         return { opened: true };
       },
       setFields(values) {
+        if (detail.value) return { success: false, reason: 'blocked', blockedBy: 'detail-dialog' };
+        if (editing.value) return { success: false, reason: 'edit-in-progress' };
         if (!dialog.value) openCreate();
         const allowed = ['name', 'company', 'email', 'phone', 'category', 'address'];
         for (const [k, v] of Object.entries(values)) {
@@ -45,6 +48,17 @@ watch(() => props.resource, (res) => {
       },
       getValues() {
         return { ...form.value };
+      },
+      async save() {
+        if (detail.value) return { success: false, reason: 'blocked', blockedBy: 'detail-dialog' };
+        if (editing.value) return { success: false, reason: 'edit-in-progress' };
+        if (!dialog.value) return { success: false, reason: 'not-open' };
+        await save();
+        return { success: true };
+      },
+      close() {
+        dialog.value = false;
+        return { success: true };
       }
     });
   }

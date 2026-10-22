@@ -245,9 +245,19 @@ def navigate(a):
     return {'navigated': True, 'page': page, 'path': NAV_PAGES[page]}
 
 
+def open_vendor_form(a):
+    allowed_fields = ('name', 'company', 'email', 'phone', 'category', 'address')
+    fields = {k: a[k] for k in allowed_fields if a.get(k)}
+    return {'opened': True, 'page': 'vendors', 'path': NAV_PAGES['vendors'], 'fields': fields}
+
+
 # --------------------------------------------------------------------------- registry
 def _navigate_action(out):
     return {'type': 'navigate', 'page': out['page'], 'path': out['path']}
+
+
+def _open_vendor_form_action(out):
+    return {'type': 'open_vendor_form', 'page': out['page'], 'path': out['path'], 'fields': out['fields']}
 
 
 _L = Param('integer', f'Max rows to return (default {DEFAULT_LIMIT}, max {MAX_LIMIT}).',
@@ -288,6 +298,18 @@ _TOOLS = [
     Tool('navigate', 'Open one page of the application. Only the listed pages exist.',
          {'page': Param('string', 'Page to open.', enum=tuple(NAV_PAGES))}, navigate, required=('page',),
          to_action=_navigate_action),
+    Tool('open_vendor_form', 'Open the Add Vendor form dialog on the Vendors page, optionally pre-filling '
+         'fields (name, company, email, phone, category, address) provided by the user. Does not save to database.',
+         {
+             'name': _S('Vendor contact name.'),
+             'company': _S('Vendor company name.'),
+             'email': _S('Vendor email address.'),
+             'phone': _S('Vendor phone number.'),
+             'category': _S('Vendor category.'),
+             'address': _S('Vendor physical address.'),
+         },
+         open_vendor_form,
+         to_action=_open_vendor_form_action),
 ]
 
 

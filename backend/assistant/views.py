@@ -18,8 +18,8 @@ def _fail(code, message, status):
 
 
 def _navigation(actions):
-    """API keeps its original `navigation` field: the last navigate action, if any."""
-    nav = [a for a in actions if a.get('type') == 'navigate']
+    """API keeps its original `navigation` field: the last navigate or form-open action, if any."""
+    nav = [a for a in actions if a.get('type') in ('navigate', 'open_vendor_form')]
     return {'page': nav[-1]['page'], 'path': nav[-1]['path']} if nav else None
 
 
@@ -45,4 +45,5 @@ def chat(request):
     except AssistantError as ex:
         return _fail(ex.code, ex.message, ex.status)
     return Response({'success': True, 'data': {
-        'reply': result.reply, 'navigation': _navigation(result.actions), 'toolsUsed': result.tools_used}})
+        'reply': result.reply, 'navigation': _navigation(result.actions),
+        'actions': result.actions, 'toolsUsed': result.tools_used}})
