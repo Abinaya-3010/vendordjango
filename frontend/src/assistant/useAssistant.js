@@ -1,3 +1,4 @@
+
 import { reactive } from 'vue'
 import { DEFAULT_MESSAGES, MESSAGES, ErrorCodes } from '../voice/core/errors.js'
 import { getFormController, VENDOR_FORM } from '../voice/adapters/vendorpro/formBridge.js'
@@ -58,6 +59,56 @@ export function createAssistant({
 
   const push = (role, text) => state.messages.push({ id: nextId++, role, text })
 
+  // Browser-local preferred name for the person using the assistant.
+  // This is separate from the assistant's own display name.
+  const USER_NAME_KEY = 'vendorpro.user.preferredName'
+  function readPreferredName() {
+    try {
+      return typeof localStorage !== 'undefined'
+        ? (localStorage.getItem(USER_NAME_KEY) || '').trim()
+        : ''
+    } catch {
+      return ''
+    }
+  }
+  let preferredName = readPreferredName()
+
+  function respondLocally(reply) {
+    push('assistant', reply)
+    return speak(reply)
+  }
+
+  function preferredNameIntent(input) {
+    const value = input.trim().replace(/[.!?]+$/, '').trim()
+    if (/^(?:what(?:'s| is) (?:my name|the name you call me)|what (?:name|do you call me)|how do you (?:address|call) me|do you remember my name|what should you call me)\??$/i.test(value)) {
+      return preferredName
+        ? `I call you ${preferredName}.`
+        : "You haven't told me what you'd like to be called yet. You can say 'Call me Abi'."
+    }
+    if (/^(?:forget (?:my name|what to call me)|don't call me by (?:my )?name|clear my preferred name)$/i.test(value)) {
+      preferredName = ''
+      try { if (typeof localStorage !== 'undefined') localStorage.removeItem(USER_NAME_KEY) } catch { /* browser storage unavailable */ }
+      return "Okay, I won't use a preferred name for you."
+    }
+    const match = value.match(/^(?:please\s+)?(?:call me|you can call me|my name is|change my name to|change what you call me to|i prefer to be called)\s+(.+)$/i)
+    if (!match) return null
+    const name = match[1].trim().replace(/[.!?]+$/, '').trim()
+    // Reject sentence-like or suspicious values rather than storing arbitrary chat text.
+    if (!name || name.length > 40 || name.split(/\s+/).length > 4 || !/^[\p{L}][\p{L}\p{M} .'-]*$/u.test(name)) {
+      return 'Please tell me a short name, for example: Call me Abi.'
+    }
+    try {
+      if (typeof localStorage === 'undefined') throw new Error('Storage unavailable')
+      localStorage.setItem(USER_NAME_KEY, name)
+    } catch {
+      return "I couldn't save that name in this browser. Please check browser storage settings."
+    }
+    preferredName = name
+    return `Sure, I'll call you ${preferredName}.`
+  }
+
+
+
   const formSession = createVendorFormSession({
     getController: () => getController(VENDOR_FORM),
     getLang: () => state.lang,
@@ -114,6 +165,15 @@ export function createAssistant({
         formSession.cancel()
         state.status = 'idle'
       }
+      return
+    }
+
+    // Resolve personal-name requests deterministically, without asking Gemini.
+    // Vendor form turns are handled above, so a vendor name is never mistaken for a user preference.
+    const nameReply = preferredNameIntent(text)
+    if (nameReply !== null) {
+      push('user', text)
+      await respondLocally(nameReply)
       return
     }
 

@@ -1,2 +1,94 @@
-<template><q-layout view="hHh Lpr fFf"><q-header class="bg-dark"><q-toolbar><q-btn flat dense round icon="menu" @click="drawer=!drawer"/><q-toolbar-title>VendorPro Management System</q-toolbar-title><q-btn flat dense icon="smart_toy" label="AI Assistant" class="q-mr-sm" aria-label="Toggle AI assistant" @click="assistantOpen=!assistantOpen"/><q-badge color="positive">System Online</q-badge></q-toolbar></q-header><q-drawer v-model="drawer" show-if-above bordered :width="250"><div class="q-pa-lg text-h6">◈ VendorPro</div><q-list><q-item v-for="n in nav" :key="n.path" clickable :to="n.path" active-class="text-deep-purple-4"><q-item-section avatar><q-icon :name="n.icon"/></q-item-section><q-item-section>{{n.label}}</q-item-section></q-item></q-list></q-drawer><q-drawer v-model="assistantOpen" side="right" overlay bordered :width="380" behavior="mobile" class="assistant-drawer"><assistant-panel/></q-drawer><q-page-container><router-view/></q-page-container></q-layout></template>
-<script setup>import {ref} from 'vue';import AssistantPanel from './components/AssistantPanel.vue';const drawer=ref(true);const assistantOpen=ref(false);const nav=[{path:'/',label:'Dashboard',icon:'dashboard'},{path:'/vendors',label:'Vendors',icon:'groups'},{path:'/rfqs',label:'RFQs',icon:'request_quote'},{path:'/quotations',label:'Quotations',icon:'compare_arrows'},{path:'/purchase-orders',label:'Orders',icon:'shopping_cart'},{path:'/invoices',label:'Invoices',icon:'receipt'},{path:'/inventory',label:'Inventory',icon:'inventory'}]</script>
+
+<template>
+  <q-layout view="hHh Lpr fFf">
+    <q-header class="bg-dark">
+      <q-toolbar>
+        <q-btn
+          flat
+          dense
+          round
+          icon="menu"
+          aria-label="Toggle navigation"
+          @click="drawer = !drawer"
+        />
+
+        <q-toolbar-title>
+          VendorPro Management System
+        </q-toolbar-title>
+
+        <q-btn
+          flat
+          dense
+          icon="smart_toy"
+          label="AI Assistant"
+          class="q-mr-sm"
+          aria-label="Toggle AI assistant"
+          @click="assistantOpen = !assistantOpen"
+        />
+      </q-toolbar>
+    </q-header>
+
+    <q-drawer
+      v-model="drawer"
+      show-if-above
+      bordered
+      :width="250"
+    >
+      <div class="q-pa-lg text-h6">◈ VendorPro</div>
+
+      <q-list>
+        <q-item
+          v-for="n in nav"
+          :key="n.path"
+          clickable
+          :to="n.path"
+          active-class="text-deep-purple-4"
+        >
+          <q-item-section avatar>
+            <q-icon :name="n.icon" />
+          </q-item-section>
+
+          <q-item-section>
+            {{ n.label }}
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </q-drawer>
+
+    <q-drawer
+      v-model="assistantOpen"
+      side="right"
+      overlay
+      bordered
+      :width="380"
+      behavior="mobile"
+      class="assistant-drawer"
+    >
+      <assistant-panel />
+    </q-drawer>
+
+    <q-page-container>
+      <router-view />
+    </q-page-container>
+  </q-layout>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import AssistantPanel from './components/AssistantPanel.vue'
+
+const drawer = ref(true)
+
+// Automatically show the assistant when the app loads.
+const assistantOpen = ref(true)
+
+const nav = [
+  { path: '/', label: 'Dashboard', icon: 'dashboard' },
+  { path: '/vendors', label: 'Vendors', icon: 'groups' },
+  { path: '/rfqs', label: 'RFQs', icon: 'request_quote' },
+  { path: '/quotations', label: 'Quotations', icon: 'compare_arrows' },
+  { path: '/purchase-orders', label: 'Orders', icon: 'shopping_cart' },
+  { path: '/invoices', label: 'Invoices', icon: 'receipt' },
+  { path: '/inventory', label: 'Inventory', icon: 'inventory' },
+]
+</script>
