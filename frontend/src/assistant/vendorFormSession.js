@@ -7,7 +7,7 @@ export const PROMPTS = Object.freeze({
   'en-US': {
     name: "What is the vendor's name?",
     company: "What is the company name?",
-    email: "What is the vendor's email address?",
+    email: "Please provide a valid email address for the vendor.",
     phone: "What is the phone number?",
     category: "What is the vendor's category?",
     address: "What is the vendor's address?",
@@ -27,7 +27,7 @@ export const PROMPTS = Object.freeze({
   'es-ES': {
     name: '¿Cuál es el nombre del proveedor?',
     company: '¿Cuál es el nombre de la empresa?',
-    email: '¿Cuál es el correo electrónico del proveedor?',
+    email: 'Por favor, proporcione una dirección de correo electrónico válida para el proveedor.',
     phone: '¿Cuál es el número de teléfono?',
     category: '¿Cuál es la categoría del proveedor?',
     address: '¿Cuál es la dirección del proveedor?',
