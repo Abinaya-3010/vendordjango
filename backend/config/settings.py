@@ -24,8 +24,8 @@ STATIC_URL = "/static/"
 ASSISTANT_PROVIDER=os.getenv('ASSISTANT_PROVIDER','gemini')
 GEMINI_API_KEY=os.getenv('GEMINI_API_KEY','')
 GEMINI_MODEL=os.getenv('GEMINI_MODEL','gemini-2.5-flash')
-GEMINI_TIMEOUT_SECONDS=float(os.getenv('GEMINI_TIMEOUT_SECONDS','20'))  # per Gemini call
+GEMINI_TIMEOUT_SECONDS=float(os.getenv('GEMINI_TIMEOUT_SECONDS','60'))  # per Gemini call
 GEMINI_MAX_OUTPUT_TOKENS=int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS','4096'))
 # Whole-request budget across all tool steps. Keep the frontend timeout (VITE_ASSISTANT_TIMEOUT_MS)
 # above: total - 5 + GEMINI_TIMEOUT_SECONDS.
-ASSISTANT_TOTAL_TIMEOUT_SECONDS=float(os.getenv('ASSISTANT_TOTAL_TIMEOUT_SECONDS','45'))
+ASSISTANT_TOTAL_TIMEOUT_SECONDS=float(os.getenv('ASSISTANT_TOTAL_TIMEOUT_SECONDS','90'))
